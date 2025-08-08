@@ -2,12 +2,16 @@
 
 # This script wraps the deployment and posts results to GitHub PR using gh CLI
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 GIT_BRANCH_NAME=$1
 SANITIZED_BRANCH_NAME=$2
 IS_DELETED=$3
 PR_NUMBER=$4
 REPO_OWNER=$5
 REPO_NAME=$6
+DEPLOYMENT_NAME=$7
 
 LOG_FILE="/tmp/deploy-${SANITIZED_BRANCH_NAME}-$(date +%s).log"
 
@@ -33,7 +37,7 @@ post_pr_comment() {
 # Handle deletion differently
 if [ "$IS_DELETED" = "true" ]; then
     # Run cleanup
-    ./deploy-branch.sh "$GIT_BRANCH_NAME" "$SANITIZED_BRANCH_NAME" "$IS_DELETED" 2>&1 | tee "$LOG_FILE"
+    "$SCRIPT_DIR/deploy-branch.sh" "$GIT_BRANCH_NAME" "$SANITIZED_BRANCH_NAME" "$IS_DELETED" 2>&1 | tee "$LOG_FILE"
     DEPLOY_EXIT_CODE=${PIPESTATUS[0]}
     
     if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
@@ -73,7 +77,7 @@ if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
     COMMENT_BODY="## 🚀 Deployment Successful!
 
 **Branch**: \`$GIT_BRANCH_NAME\`
-**Test Site**: https://dev-$SANITIZED_BRANCH_NAME.mcptest.io
+**Test Site**: https://${DEPLOY_BRANCH_SUBDOMAIN_PREFIX}${SANITIZED_BRANCH_NAME}.${DEPLOY_BASE_DOMAIN}
 
 ### Build Log (last 50 lines):
 \`\`\`

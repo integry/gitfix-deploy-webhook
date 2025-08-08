@@ -1,0 +1,14 @@
+name: mcptest
+repo_url: git@github.com:integry/mcptest.git
+webhook_secret: 4e8Z9A7NHTK1q6771eUnSIi5ag7cq6YqT7aXcNWf9gx1u4IQdS
+deployment:
+  base_domain: mcptest.io
+  base_dir: /var/www/mcptest
+  main_branch: master
+  branch_subdomain_prefix: dev-
+  production_branches: [master, main]
+build:
+  commands:
+    - npm install
+    - npm run build
+  env_file: .env.mcptest

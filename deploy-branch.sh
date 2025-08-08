@@ -2,13 +2,19 @@
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load environment variables
+source "$SCRIPT_DIR/load-env.sh"
+
 # Accept both original and sanitized branch names
 GIT_BRANCH_NAME=$1
 SANITIZED_BRANCH_NAME=$2
 IS_DELETED=$3
 
-REPO_DIR="/var/www/mcptest/repo"
-BRANCHES_BASE_DIR="/var/www/mcptest/branches"
+REPO_DIR="$REPO_CLONE_DIR"
+BRANCHES_BASE_DIR="$BRANCHES_BASE_DIR"
 BRANCH_DIR="$BRANCHES_BASE_DIR/$SANITIZED_BRANCH_NAME"
 
 echo "--- Starting deployment for branch: $GIT_BRANCH_NAME ---"
@@ -29,12 +35,12 @@ fi
 
 # Ensure base directories exist
 mkdir -p "$BRANCHES_BASE_DIR"
-sudo chown -R $USER:$USER /var/www/mcptest
+sudo chown -R $USER:$USER "$DEPLOY_BASE_DIR"
 
 # Clone the main repo if it doesn't exist
 if [ ! -d "$REPO_DIR" ]; then
     echo "Cloning main repository..."
-    git clone git@github.com:integry/mcptest.git "$REPO_DIR"
+    git clone "$DEPLOY_REPO_URL" "$REPO_DIR"
 fi
 
 # Add delay to ensure GitHub has processed the push
@@ -60,10 +66,16 @@ git checkout -B "$GIT_BRANCH_NAME" "origin/$GIT_BRANCH_NAME" || {
 # Copy files to the build directory (avoids issues with git worktree in scripts)
 cp -r . "$BRANCH_DIR/"
 
-# Copy .env file to enable Firebase Auth
-if [ -f "/root/mcp-webhook-listener/.env" ]; then
-    echo "Copying .env file for Firebase Auth configuration..."
-    cp "/root/mcp-webhook-listener/.env" "$BRANCH_DIR/"
+# Copy deployment-specific .env file if specified
+if [ -n "$BUILD_ENV_FILE" ] && [ -f "$BUILD_ENV_FILE" ]; then
+    echo "Copying deployment-specific .env file: $BUILD_ENV_FILE"
+    cp "$BUILD_ENV_FILE" "$BRANCH_DIR/.env"
+elif [ -f "$SCRIPT_DIR/.env.${DEPLOYMENT_NAME}" ]; then
+    echo "Copying .env file for deployment: ${DEPLOYMENT_NAME}"
+    cp "$SCRIPT_DIR/.env.${DEPLOYMENT_NAME}" "$BRANCH_DIR/.env"
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    echo "Copying default .env file..."
+    cp "$SCRIPT_DIR/.env" "$BRANCH_DIR/"
 fi
 
 # Build the application
@@ -83,7 +95,8 @@ retry_npm_install() {
         # Add a small delay to let filesystem settle
         sleep 2
         
-        if npm install; then
+        # Ensure we install all dependencies including devDependencies
+        if NODE_ENV=development npm install; then
             echo "Dependencies installed successfully"
             return 0
         else
@@ -116,5 +129,13 @@ fi
 echo "Building the application..."
 npm run build
 
+# Run custom gitfix-install.sh if present
+if [ -f "$SCRIPT_DIR/run-gitfix-install.sh" ]; then
+    echo "Running custom installation script if present..."
+    "$SCRIPT_DIR/run-gitfix-install.sh" "$BRANCH_DIR" "$BRANCH_DIR" "$DEFAULT_DEPLOY_ENV" || {
+        echo "WARNING: Custom installation script failed, continuing with deployment"
+    }
+fi
+
 echo "--- Deployment for $GIT_BRANCH_NAME successful! ---"
-echo "Live at: https://dev-$SANITIZED_BRANCH_NAME.mcptest.io"
+echo "Live at: https://${DEPLOY_BRANCH_SUBDOMAIN_PREFIX}${SANITIZED_BRANCH_NAME}.${DEPLOY_BASE_DOMAIN}"

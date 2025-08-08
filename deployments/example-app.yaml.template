@@ -1,0 +1,17 @@
+# Example deployment configuration
+# Copy this file and rename without .template extension to add a new deployment
+
+name: example-app
+repo_url: git@github.com:yourorg/yourrepo.git
+webhook_secret: generate-a-strong-secret-here
+deployment:
+  base_domain: example.com
+  base_dir: /var/www/example-app
+  main_branch: main
+  branch_subdomain_prefix: preview-
+  production_branches: [main, production]
+build:
+  commands:
+    - npm install
+    - npm run build
+  env_file: .env.example-app
