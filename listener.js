@@ -10,7 +10,8 @@ const app = express();
 const PORT = process.env.WEBHOOK_PORT || 8081;
 const configManager = new DeploymentConfigManager();
 
-app.use(bodyParser.json());
+// GitHub push payloads for large merges exceed the 100kb default (max is 25MB).
+app.use(bodyParser.json({ limit: '25mb' }));
 
 function ensureSubdomainLength(branchName, prefix) {
     // Sanitize the branch name first
